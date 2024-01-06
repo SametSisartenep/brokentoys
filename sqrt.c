@@ -32,7 +32,11 @@ double
 		return 0;
 
 	x0 = -1;
-	x = n > 1? n/2: 1;
+	x = n > 1? n/2: 1;	/* initial estimate */
+	/*
+	 * take advantage of the computer's discreteness
+	 * to get the most accurate result.
+	 */
 	while(x0 != x){
 		x0 = x;
 		x = 0.5*(x0 + n/x0);
