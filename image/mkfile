@@ -1,0 +1,10 @@
+</$objtype/mkfile
+
+BIN=$home/bin/$objtype
+TARG=\
+	convolution\
+	add\
+	sub\
+	sobel\
+
+</sys/src/cmd/mkmany
