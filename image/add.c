@@ -2,70 +2,50 @@
 #include <libc.h>
 #include <draw.h>
 #include <memdraw.h>
-
-#define min(a,b)	((a)<(b)?(a):(b))
-#define max(a,b)	((a)>(b)?(a):(b))
-#define clamp(a,b,c)	min(max(a,b),c)
+#include "fns.h"
 
 static int saturate;
+
+static int
+opadd(uchar b1, uchar b2)
+{
+	return b1 + b2;
+}
 
 static void
 usage(void)
 {
-	fprint(2, "usage: %s img1 img2\n", argv0);
+	fprint(2, "usage: %s [-s] img1 img2 [imgs...]\n", argv0);
 	exits(nil);
 }
 
 void
 main(int argc, char *argv[])
 {
-	Memimage *img1, *img2;
-	uchar *p1, *p2;
-	uchar *p1e;
-	ulong c;
-	int fd;
+	Memimage *imgs[2];
+	int i, j, fd;
 
 	ARGBEGIN{
 	case 's': saturate++; break;
 	default: usage();
 	}ARGEND;
-	if(argc != 2)
+	if(argc < 2)
 		usage();
 
-	fd = open(argv[0], OREAD);
-	if(fd < 0)
-		sysfatal("open: %r");
-	img1 = readmemimage(fd);
-	if(img1 == nil)
-		sysfatal("readmemimage: %r");
-	close(fd);
+	for(i = 0; i < argc; i++){
+		j = i != 0;
+		fd = eopen(argv[i], OREAD);
+		imgs[j] = ereadmemimage(fd);
+		close(fd);
 
-	fd = open(argv[1], OREAD);
-	if(fd < 0)
-		sysfatal("open: %r");
-	img2 = readmemimage(fd);
-	if(img2 == nil)
-		sysfatal("readmemimage: %r");
-	close(fd);
-
-	if(img1->chan != img2->chan || !eqrect(img1->r, img2->r))
-		sysfatal("images shapes differ");
-
-	p1 = img1->data->bdata;
-	p2 = img2->data->bdata;
-	p1e = p1 + Dx(img1->r)*Dy(img1->r)*img1->nchan;
-	while(p1 < p1e){
-		c = *p1;
-		c += *p2++;
-		if(saturate)
-			c = clamp(c, 0, 0xFF);
-		*p1++ += c;
+		if(j){
+			imgbinop(imgs[0], imgs[1], opadd, saturate);
+			freememimage(imgs[1]);
+		}
 	}
 
-	if(writememimage(1, img1) < 0)
-		sysfatal("writememimage: %r");
+	ewritememimage(1, imgs[0]);
+	freememimage(imgs[0]);
 
-	freememimage(img2);
-	freememimage(img1);
 	exits(nil);
 }

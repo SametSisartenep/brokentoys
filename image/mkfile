@@ -7,4 +7,9 @@ TARG=\
 	sub\
 	sobel\
 
+OFILES=\
+	utils.$O\
+
+HFILES=fns.h
+
 </sys/src/cmd/mkmany

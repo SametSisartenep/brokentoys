@@ -3,10 +3,7 @@
 #include <bio.h>
 #include <draw.h>
 #include <memdraw.h>
-
-#define min(a,b)	((a)<(b)?(a):(b))
-#define max(a,b)	((a)>(b)?(a):(b))
-#define clamp(a,b,c)	min(max(a,b),c)
+#include "fns.h"
 
 static int dim;
 static int saturate;
@@ -48,9 +45,7 @@ readkernel(int fd)
 			sysfatal("Brdline: %r");
 		dim = tokenize(line, f, nelem(f));
 	}while(dim < 1);
-	kern = malloc(dim*dim*sizeof(double));
-	if(kern == nil)
-		sysfatal("malloc: %r");
+	kern = emalloc(dim*dim*sizeof(double));
 	for(j = i = 0; i < dim; i++)
 		kern[j*dim+i] = strtod(f[i], nil);
 	j++;
@@ -105,9 +100,7 @@ reverse(double *k, int dim)
 	double *ck;
 	int i, j;
 
-	ck = malloc(dim*dim*sizeof(double));
-	if(ck == nil)
-		sysfatal("malloc: %r");
+	ck = emalloc(dim*dim*sizeof(double));
 
 	for(j = 0; j < dim; j++)
 	for(i = 0; i < dim; i++)
@@ -157,14 +150,9 @@ imgconvolution(Memimage *d, Memimage *s, double *k, int dim)
 	double denom, c;
 	int i;
 
-	im = malloc(d->nchan*sizeof(double*));
-	if(im == nil)
-		sysfatal("malloc: %r");
-	for(i = 0; i < d->nchan; i++){
-		im[i] = malloc(dim*dim*sizeof(double));
-		if(im[i] == nil)
-			sysfatal("malloc: %r");
-	}
+	im = emalloc(d->nchan*sizeof(double*));
+	for(i = 0; i < d->nchan; i++)
+		im[i] = emalloc(dim*dim*sizeof(double));
 
 	imr = Rect(0,0,dim,dim);
 	imc = Pt(dim/2, dim/2);
@@ -196,7 +184,7 @@ imgconvolution(Memimage *d, Memimage *s, double *k, int dim)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s kernfile\n", argv0);
+	fprint(2, "usage: %s [-s] kernfile\n", argv0);
 	exits("usage");
 }
 
@@ -214,26 +202,18 @@ main(int argc, char *argv[])
 	if(argc != 1)
 		usage();
 
-	fd = open(argv[0], OREAD);
-	if(fd < 0)
-		sysfatal("open: %r");
+	fd = eopen(argv[0], OREAD);
 	kern = readkernel(fd);
 	close(fd);
 	ckern = reverse(kern, dim);
 	free(kern);
 	kern = ckern;
 
-	in = readmemimage(0);
-	if(in == nil)
-		sysfatal("readmemimage: %r");
-
-	out = allocmemimage(in->r, in->chan);
-	if(out == nil)
-		sysfatal("allocmemimage: %r");
+	in = ereadmemimage(0);
+	out = eallocmemimage(in->r, in->chan);
 
 	imgconvolution(out, in, kern, dim);
-	if(writememimage(1, out) < 0)
-		sysfatal("writememimage: %r");
+	ewritememimage(1, out);
 
 	freememimage(out);
 	freememimage(in);
