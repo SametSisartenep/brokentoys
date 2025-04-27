@@ -9,6 +9,7 @@
 #define clamp(a,b,c)	min(max(a,b),c)
 
 static int dim;
+static int saturate;
 
 static void
 fprintm(int fd, double *m, int dim)
@@ -18,6 +19,16 @@ fprintm(int fd, double *m, int dim)
 	for(j = 0; j < dim; j++)
 	for(i = 0; i < dim; i++)
 		fprint(fd, "%g%c", m[j*dim+i], i == dim-1? '\n': '\t');
+}
+
+static char *
+getline(Biobuf *b)
+{
+	char *line;
+
+	if((line = Brdline(b, '\n')) != nil)
+		line[Blinelen(b)-1] = 0;
+	return line;
 }
 
 static double *
@@ -32,7 +43,7 @@ readkernel(int fd)
 	if(bin == nil)
 		sysfatal("Bfdopen: %r");
 	do{
-		line = Brdline(bin, '\n');
+		line = getline(bin);
 		if(line == nil)
 			sysfatal("Brdline: %r");
 		dim = tokenize(line, f, nelem(f));
@@ -44,7 +55,7 @@ readkernel(int fd)
 		kern[j*dim+i] = strtod(f[i], nil);
 	j++;
 
-	while((line = Brdline(bin, '\n')) != nil){
+	while((line = getline(bin)) != nil){
 		if((nf = tokenize(line, f, nelem(f))) < 1)
 			continue;
 		if(nf != dim)
@@ -151,7 +162,9 @@ imgconvolution(Memimage *d, Memimage *s, double *k, int dim)
 		for(cp.y = imr.min.y; cp.y < imr.max.y; cp.y++)
 		for(cp.x = imr.min.x; cp.x < imr.max.x; cp.x++){
 			for(i = 0; i < d->nchan; i++){
-				im[i][cp.y*dim + cp.x] = sample(s, addpt(p, subpt(cp, imc)), i);
+				im[i][cp.y*dim + cp.x] = saturate
+				? clamp(sample(s, addpt(p, subpt(cp, imc)), i), 0, 0xFF)
+				: sample(s, addpt(p, subpt(cp, imc)), i);
 			}
 		}
 		for(i = 0; i < d->nchan; i++)
@@ -167,7 +180,7 @@ imgconvolution(Memimage *d, Memimage *s, double *k, int dim)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s imgfile\n", argv0);
+	fprint(2, "usage: %s kernfile\n", argv0);
 	exits("usage");
 }
 
@@ -179,23 +192,24 @@ main(int argc, char *argv[])
 	int fd;
 
 	ARGBEGIN{
+	case 's': saturate++; break;
 	default: usage();
 	}ARGEND;
 	if(argc != 1)
 		usage();
 
-	kern = readkernel(0);
+	fd = open(argv[0], OREAD);
+	if(fd < 0)
+		sysfatal("open: %r");
+	kern = readkernel(fd);
+	close(fd);
 	ckern = reverse(kern, dim);
 	free(kern);
 	kern = ckern;
 
-	fd = open(argv[0], OREAD);
-	if(fd < 0)
-		sysfatal("open: %r");
-	in = readmemimage(fd);
+	in = readmemimage(0);
 	if(in == nil)
 		sysfatal("readmemimage: %r");
-	close(fd);
 
 	out = allocmemimage(in->r, in->chan);
 	if(out == nil)
