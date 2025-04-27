@@ -6,6 +6,7 @@ TARG=\
 	add\
 	sub\
 	sobel\
+	com\
 
 OFILES=\
 	utils.$O\

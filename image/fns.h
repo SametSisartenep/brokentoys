@@ -9,3 +9,4 @@ Memimage *eallocmemimage(Rectangle, ulong);
 Memimage *ereadmemimage(int);
 int ewritememimage(int, Memimage*);
 void imgbinop(Memimage*, Memimage*, int(*)(uchar, uchar), int);
+void imgunaop(Memimage*, int(*)(uchar), int);

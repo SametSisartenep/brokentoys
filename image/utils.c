@@ -98,3 +98,19 @@ imgbinop(Memimage *i1, Memimage *i2, int(*op)(uchar, uchar), int saturate)
 		*p1++ = c;
 	}
 }
+
+void
+imgunaop(Memimage *i1, int(*op)(uchar), int saturate)
+{
+	uchar *p1, *p1e;
+	int c;
+
+	p1 = i1->data->bdata;
+	p1e = p1 + Dx(i1->r)*Dy(i1->r)*i1->nchan;
+	while(p1 < p1e){
+		c = op(*p1);
+		if(saturate)
+			c = clamp(c, 0, 0xFF);
+		*p1++ = c;
+	}
+}
