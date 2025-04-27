@@ -88,16 +88,15 @@ coeffsum(double *k, int dim)
 static void
 normalize(double *k, int dim)
 {
-	double avg;
+	double denom;
 	int i, j;
 
-	avg = coeffsum(k, dim);
-	avg /= dim*dim;
-	if(avg == 0)
-		avg = 1;
+	denom = coeffsum(k, dim);
+	if(denom == 0)
+		return;
 	for(j = 0; j < dim; j++)
 	for(i = 0; i < dim; i++)
-		k[j*dim+i] /= avg;
+		k[j*dim+i] /= denom;
 }
 
 static double *
@@ -130,17 +129,14 @@ static double
 convolve(double *d, double *s, int dim)
 {
 	int i, j;
-	double denom, r;
-
-	denom = coeffsum(s, dim);
-	denom = denom == 0? 1: 1/denom;
+	double r;
 
 	modulate(d, s, dim);
 	r = 0;
 	for(j = 0; j < dim; j++)
 	for(i = 0; i < dim; i++)
 		r += d[j*dim+i];
-	return fabs(r*denom);
+	return r;
 }
 
 static uchar
@@ -158,7 +154,7 @@ imgconvolution(Memimage *d, Memimage *s, double *k, int dim)
 	double **im;
 	Rectangle imr;
 	Point imc, p, cp;
-	double c;
+	double denom, c;
 	int i;
 
 	im = malloc(d->nchan*sizeof(double*));
@@ -173,6 +169,9 @@ imgconvolution(Memimage *d, Memimage *s, double *k, int dim)
 	imr = Rect(0,0,dim,dim);
 	imc = Pt(dim/2, dim/2);
 
+	denom = coeffsum(k, dim);
+	denom = denom == 0? 1: 1/denom;
+
 	for(p.y = s->r.min.y; p.y < s->r.max.y; p.y++)
 	for(p.x = s->r.min.x; p.x < s->r.max.x; p.x++){
 		for(cp.y = imr.min.y; cp.y < imr.max.y; cp.y++)
@@ -181,7 +180,7 @@ imgconvolution(Memimage *d, Memimage *s, double *k, int dim)
 				im[i][cp.y*dim + cp.x] = sample(s, addpt(p, subpt(cp, imc)), i);
 		}
 		for(i = 0; i < d->nchan; i++){
-			c = convolve(im[i], k, dim);
+			c = fabs(convolve(im[i], k, dim) * denom);
 			if(saturate)
 				c = clamp(c, 0, 0xFF);
 			*(byteaddr(d, p) + i) = c;
