@@ -3,6 +3,12 @@
 #include <draw.h>
 #include <memdraw.h>
 
+#define min(a,b)	((a)<(b)?(a):(b))
+#define max(a,b)	((a)>(b)?(a):(b))
+#define clamp(a,b,c)	min(max(a,b),c)
+
+static int saturate;
+
 static void
 usage(void)
 {
@@ -16,9 +22,11 @@ main(int argc, char *argv[])
 	Memimage *img1, *img2;
 	uchar *p1, *p2;
 	uchar *p1e;
+	ulong c;
 	int fd;
 
 	ARGBEGIN{
+	case 's': saturate++; break;
 	default: usage();
 	}ARGEND;
 	if(argc != 2)
@@ -46,8 +54,13 @@ main(int argc, char *argv[])
 	p1 = img1->data->bdata;
 	p2 = img2->data->bdata;
 	p1e = p1 + Dx(img1->r)*Dy(img1->r)*img1->nchan;
-	while(p1 < p1e)
-		*p1++ += *p2++;
+	while(p1 < p1e){
+		c = *p1;
+		c += *p2++;
+		if(saturate)
+			c = clamp(c, 0, 0xFF);
+		*p1++ += c;
+	}
 
 	if(writememimage(1, img1) < 0)
 		sysfatal("writememimage: %r");
