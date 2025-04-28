@@ -142,28 +142,37 @@ sample(Memimage *i, Point p, int off)
 }
 
 static void
-imgconvolution(Memimage *d, Memimage *s, double *k, int dim)
+mksubrects(Rectangle *sr, int nsr, Rectangle *r)
+{
+	int i, Δy;
+
+	sr[0] = *r;
+	Δy = Dy(sr[0])/nsr;
+	sr[0].max.y = sr[0].min.y + Δy;
+	for(i = 1; i < nsr; i++)
+		sr[i] = rectaddpt(sr[i-1], Pt(0,Δy));
+	if(sr[nsr-1].max.y < r->max.y)
+		sr[nsr-1].max.y = r->max.y;
+}
+
+static void
+subimgconvolution(Memimage *d, Memimage *s, Rectangle *r, double *k, int dim, double denom)
 {
 	double **im;
-	Rectangle imr;
 	Point imc, p, cp;
-	double denom, c;
+	double c;
 	int i;
 
 	im = emalloc(d->nchan*sizeof(double*));
 	for(i = 0; i < d->nchan; i++)
 		im[i] = emalloc(dim*dim*sizeof(double));
 
-	imr = Rect(0,0,dim,dim);
 	imc = Pt(dim/2, dim/2);
 
-	denom = coeffsum(k, dim);
-	denom = denom == 0? 1: 1/denom;
-
-	for(p.y = s->r.min.y; p.y < s->r.max.y; p.y++)
-	for(p.x = s->r.min.x; p.x < s->r.max.x; p.x++){
-		for(cp.y = imr.min.y; cp.y < imr.max.y; cp.y++)
-		for(cp.x = imr.min.x; cp.x < imr.max.x; cp.x++){
+	for(p.y = r->min.y; p.y < r->max.y; p.y++)
+	for(p.x = r->min.x; p.x < r->max.x; p.x++){
+		for(cp.y = 0; cp.y < dim; cp.y++)
+		for(cp.x = 0; cp.x < dim; cp.x++){
 			for(i = 0; i < d->nchan; i++)
 				im[i][cp.y*dim + cp.x] = sample(s, addpt(p, subpt(cp, imc)), i);
 		}
@@ -178,6 +187,40 @@ imgconvolution(Memimage *d, Memimage *s, double *k, int dim)
 	for(i = 0; i < d->nchan; i++)
 		free(im[i]);
 	free(im);
+}
+
+static void
+imgconvolution(Memimage *d, Memimage *s, double *k, int dim)
+{
+	double denom;
+	Rectangle *subr;
+	char *nprocs;
+	int nproc, i;
+
+	denom = coeffsum(k, dim);
+	denom = denom == 0? 1: 1/denom;
+
+	nprocs = getenv("NPROC");
+	if(nprocs == nil || (nproc = strtoul(nprocs, nil, 10)) < 2)
+		nproc = 1;
+	free(nprocs);
+
+	subr = emalloc(nproc*sizeof(*subr));
+	mksubrects(subr, nproc, &s->r);
+
+	for(i = 0; i < nproc; i++){
+		switch(rfork(RFPROC|RFMEM)){
+		case -1:
+			sysfatal("rfork: %r");
+		case 0:
+			subimgconvolution(d, s, &subr[i], k, dim, denom);
+			exits(nil);
+		}
+	}
+	while(waitpid() != -1)
+		;
+
+	free(subr);
 }
 
 
